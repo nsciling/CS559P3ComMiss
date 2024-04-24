@@ -9,93 +9,38 @@ let canvasW = canvas.getAttribute("width");
 // globals
 let mouseX;
 let mouseY;
-let turretRadius = 40;
+let turretRadius = 50;
+let turLen = 90;
 let baseX = canvasW/2;
 let baseY = canvasH - turretRadius;
 
 //this is a 'display list' -> list of objects we plan to draw
 let newColor = getRGBcolorString();
-let fwList = [{n:25, x: 250, y: 400, vx: 0, vy: -2, tx: 300, ty: 150, ay: 0.005, curColor: newColor, origColor: newColor}]
+let abmTotal = 9;
+let abmRad = 5;
+let abmList = [];
+let abmTrail = [];
+let abmSpeed = 2.5;
+let bombList = [];
 let expList = [];   // explosions
 let expCount = 35;  // default number of explosions to produce
 
-canvas.onmousedown = function(event) {
-    let box = event.target.getBoundingClientRect();
-    let tx = event.clientX - box.left;  // target X coord for firework
-    let ty = event.clientY - box.top;   // target Y coord for firework
-    
-    newColor = getRGBcolorString();
-
-    fwList.push({n: expCount, x: tx, y: 400, vx: 0, vy: -(Math.random() * 6 + 2), tx: tx, ty: ty, ay: 0.005, curColor: newColor, origColor: newColor});
-}
-
-canvas.onmousemove = function(event) {
-    mouseX = event.offsetX;
-    mouseY = event.offsetY;
-}
 
 /**
- * A function to draw a display list representing a firework.
+ * Main draw function to redraw game on each animation iteration
  */
 let draw = function() {
 
+    // clean & redraw screen
     resetCanvas();
 
+    // draws missiles, turret base & gun
+    drawABMs();
     drawTurret();
-
-    //check to add random fireworks
-    if(Math.random() > 0.99) { launchRandomFirework(); }
-    
-    // Update the list
-    for(let li of fwList) {
-        li.x += li.vx;
-
-        //make y decelerate as it nears the target
-        if((li.y - li.ty) < 75) li.vy += li.ay;
-        if((li.y - li.ty) > 0) li.y += li.vy;
-
-        //make an explosion
-        if (li.y <= li.ty && li.n > 0) {
-            //once firework reaches target y value, hide it by making it the same
-            //color as the canvas, with slight delay
-            if (li.n < expCount) { li.curColor = context.fillStyle; };
-            
-            //decrease the explosion count, and push another explosion element
-            li.n--;
-            expList.push({x: li.x, y: li.y, vx: 4 * (Math.random() * 2 - 1),
-                vy: 4 * (Math.random() * 2 - 1), ay: 0.04, color: li.origColor});
-        }
-
-        //remove the element if it is done exploding
-        if(li.n <= 0) {
-            let index = fwList.indexOf(li);
-            fwList.splice(index,1);
-        } else {
-            //animate
-            drawFirework(li.x, li.y, 5, li.curColor);
-        }
-    }
-
-    // animate the explosion
-    for(let an of expList) {
-        an.x += an.vx;  // update x position of explosion
-        an.vy += an.ay; // update y velocity (so that it speeds up towards ground)
-        an.y += an.vy;  // update y position
-
-        //remove the element if outside canvas bounds
-        if(outsideBounds(an)) {
-            let index = expList.indexOf(an);
-            expList.splice(index,1);
-        } else {
-            an.color = fadeColor(an.color); // make the explosion more transparent
-            drawExplosion(an.x, an.y, 4, an.color);
-        }
-    }
 
     // next frame
     window.requestAnimationFrame(draw);
 }
-
 
 /**
  * Resets the game state on each animation
@@ -107,12 +52,34 @@ function resetCanvas() {
     context.fillRect(0,0,canvasW, canvasH);
 }
 
+
+/**
+ * Draws the missiles currently in flight
+ */
+function drawABMs() {
+
+    for(let i = 0; i < abmList.length; i++) {
+        let curABM = abmList[i];
+        curABM.dist += abmSpeed;
+        let newPos = getPointOnPath(curABM.x, curABM.y, curABM.tx, curABM.ty, curABM.dist);
+        
+        // draw missile
+		context.beginPath();
+		context.arc(newPos.x, newPos.y, abmRad, 0, 2 * Math.PI, false);
+		context.fillStyle="white";
+		context.fill();
+
+        // if pct >= 1.0 no more missile
+        if(newPos.isBeyond) abmList.splice(i, 1); 
+    }
+}
+
 /**
  * Draws the gun turret player users to shoot
  */
 function drawTurret() {
     // target
-    let adjTarget = getAdjustedTurretPos(baseX,baseY,mouseX,mouseY,90);
+    let adjTarget = getAdjustedTurretPos(baseX,baseY,mouseX,mouseY,turLen);
 
     //draw gun & rotate matrix
     let gunColor = "#05e322";
@@ -131,20 +98,32 @@ function drawTurret() {
     context.arc(baseX, baseY, turretRadius, 0, 2 * Math.PI, false);
     context.fillStyle=turretColor;
     context.fill();
-
 }
 
 /**
- * Function to launch a random firework
+ * Fires an anti-ballistic missle (aka adds an element to the abmList array)
+ * 
+ * @param {number} tx - client target X coord for the missile
+ * @param {number} ty - client target Y coord for the missile
+ * @returns nothing
  */
-function launchRandomFirework() {
-    newColor = getRGBcolorString();
+function fireABM(tx, ty) {
+    // if already fired all bullets, don't fire anything
+    if(abmList.length >= abmTotal) return;
 
-    let x = getRandomBetween(0.1,0.9) * canvas.getAttribute("width"); // don't fire at the screen edges
-    let y = getRandomBetween(0,0.95) * canvas.getAttribute("height"); // on't fire all the way to the top
+    // bet base x & y from adjusted turret position
+    let turretEdge = getAdjustedTurretPos(baseX, baseY, tx, ty, turLen);
 
-    fwList.push({n:expCount, x: x, y: 400, vx: 0, vy: -(Math.random() * 5 + 1), 
-        tx: 300, ty: y, ay: 0.005, curColor: newColor, origColor: newColor});
+    // build elements of the AMB missile
+    abmList.push({
+        x:  turretEdge.x,
+        y:  turretEdge.y,
+        tx: tx,
+        ty: ty,
+        dist:0,
+    });
+
+    return;
 }
 
 /**
@@ -157,32 +136,6 @@ function launchRandomFirework() {
 function getRandomBetween(min, max) {
     if(max===undefined || min===undefined || max < min) return undefined;
     return ((Math.random() * (max - min)) + min);
-}
-
-/**
- * Function to draw a firework circle
- * 
- * @param {number} x - x-coordinate of the circle in the frame
- * @param {number} y - y-coordinate of the circle in the frame
- * @param {number} rad - radius of the circle6
- * @param {string} color - color of the circle
- * @returns none; draws a circle on the webpage
- */
-function drawFirework(x, y, rad, color) {
-    //if we don't have the necessary data, quit
-    if(x===undefined || y===undefined || rad===undefined || color===undefined) return;
-    
-    //save off context before 
-    context.save();
-
-    //draw firework
-    context.beginPath();
-    context.arc(x, y, rad, 0, 2 * Math.PI, false);
-    context.fillStyle=color;
-    context.fill();
-
-    //restore context
-    context.restore();
 }
 
 /**
@@ -250,7 +203,7 @@ function fadeColor(colorString) {
  * @param {object} element - an element with an x & y attribute; expected from the 'fwList' or 'expList' arrays
  * @returns 1 if oustide canvas bounds, 0 otherwise
  */
-    function outsideBounds(element) {
+function outsideBounds(element) {
 
     if(element===undefined || element===null) return 0;
 
@@ -270,14 +223,71 @@ function resetTransormationMatrix() {
     context.setTransform(1, 0, 0, 1, 0, 0);
 }
 
+/**
+ * Draws a turret pointing towards the target x & y coordinates.
+ * 
+ * @param {number} bx - base turret x position
+ * @param {number} by - base turret y position
+ * @param {number} tx - sky target x pos
+ * @param {number} ty - sky target y pos
+ * @param {number} len - length of the turret
+ * @returns an object with x and y coordinate attributes
+ */
 function getAdjustedTurretPos(bx,by,tx,ty,len) {
+
+    // distance between base and target points
     let dist = Math.sqrt((tx-bx)**2 + (by-ty)**2);
     
-    let mult = len / dist;
-    let newX = bx - ((bx - tx)*mult);
-    let newY = by - ((by - ty)*mult);
+    // calculate the % of the total distance that is the desired length
+    let fraction = len / dist;
+
+    // set the new target X & Y to draw the turret to
+    let newX = bx - ((bx - tx) * fraction);
+    let newY = by - ((by - ty) * fraction);
     
     return {x:newX, y:newY};
+}
+
+/**
+ * Gets a point on the path between start & target at the designated added distance
+ * 
+ * @param {number} startX 
+ * @param {number} startY 
+ * @param {number} targetX 
+ * @param {number} targetY 
+ * @param {number} increment 
+ * @returns an object with x and y coordinate attributes
+ */
+function getPointOnPath(startX, startY, targetX, targetY, increment) {
+    // distance between base and target points
+    let dist = Math.sqrt((targetX - startX)**2 + (targetY - startY)**2);
+    
+    // calculate the % of the total distance that is the desired length
+    let fraction = increment / dist;
+
+    // set the new target X & Y to draw the turret to
+    let newX = startX - ((startX - targetX) * fraction);
+    let newY = startY - ((startY - targetY) * fraction);
+    return {x:newX, y:newY, isBeyond:(fraction >= 1.0)};
+}
+
+// Function wrappers to get mouse coords
+function getMouseX(event) { return event.clientX - event.target.getBoundingClientRect().left; }
+function getMouseY(event) { return event.clientY - event.target.getBoundingClientRect().top; }
+
+
+// Event handlers
+
+canvas.onmousedown = function(event) {
+    let tx = getMouseX(event);
+    let ty = getMouseY(event);
+
+    fireABM(tx, ty);
+}
+
+canvas.onmousemove = function(event) {
+    mouseX = getMouseX(event);
+    mouseY = getMouseY(event);
 }
 
 
