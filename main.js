@@ -6,6 +6,13 @@ let context = canvas.getContext("2d");
 let canvasH = canvas.getAttribute("height");
 let canvasW = canvas.getAttribute("width");
 
+// globals
+let mouseX;
+let mouseY;
+let turretRadius = 40;
+let baseX = canvasW/2;
+let baseY = canvasH - turretRadius;
+
 //this is a 'display list' -> list of objects we plan to draw
 let newColor = getRGBcolorString();
 let fwList = [{n:25, x: 250, y: 400, vx: 0, vy: -2, tx: 300, ty: 150, ay: 0.005, curColor: newColor, origColor: newColor}]
@@ -22,14 +29,19 @@ canvas.onmousedown = function(event) {
     fwList.push({n: expCount, x: tx, y: 400, vx: 0, vy: -(Math.random() * 6 + 2), tx: tx, ty: ty, ay: 0.005, curColor: newColor, origColor: newColor});
 }
 
+canvas.onmousemove = function(event) {
+    mouseX = event.offsetX;
+    mouseY = event.offsetY;
+}
+
 /**
  * A function to draw a display list representing a firework.
  */
 let draw = function() {
-    //reset the canvas
-    context.clearRect(0, 0, canvasW, canvasH);
-    context.fillStyle = "#131862";
-    context.fillRect(0,0,canvasW, canvasH);
+
+    resetCanvas();
+
+    drawTurret();
 
     //check to add random fireworks
     if(Math.random() > 0.99) { launchRandomFirework(); }
@@ -82,6 +94,44 @@ let draw = function() {
 
     // next frame
     window.requestAnimationFrame(draw);
+}
+
+
+/**
+ * Resets the game state on each animation
+ */
+function resetCanvas() {
+    //reset the canvas
+    context.clearRect(0, 0, canvasW, canvasH);
+    context.fillStyle = "#131862";
+    context.fillRect(0,0,canvasW, canvasH);
+}
+
+/**
+ * Draws the gun turret player users to shoot
+ */
+function drawTurret() {
+    // target
+    let adjTarget = getAdjustedTurretPos(baseX,baseY,mouseX,mouseY,90);
+
+    //draw gun & rotate matrix
+    let gunColor = "#05e322";
+    context.lineWidth = 20;
+    context.beginPath();
+    context.moveTo(baseX, baseY);
+    context.strokeStyle = gunColor;
+    context.lineTo(adjTarget.x, adjTarget.y);
+    context.stroke();
+    context.closePath();
+    resetTransormationMatrix();
+    
+    //draw circle turret platform
+    let turretColor = "#992593";
+    context.beginPath();
+    context.arc(baseX, baseY, turretRadius, 0, 2 * Math.PI, false);
+    context.fillStyle=turretColor;
+    context.fill();
+
 }
 
 /**
@@ -211,6 +261,23 @@ function fadeColor(colorString) {
     //default
     return 0;
 
+}
+
+/**
+ * Resets the transformation matrix
+ */
+function resetTransormationMatrix() {
+    context.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+function getAdjustedTurretPos(bx,by,tx,ty,len) {
+    let dist = Math.sqrt((tx-bx)**2 + (by-ty)**2);
+    
+    let mult = len / dist;
+    let newX = bx - ((bx - tx)*mult);
+    let newY = by - ((by - ty)*mult);
+    
+    return {x:newX, y:newY};
 }
 
 
