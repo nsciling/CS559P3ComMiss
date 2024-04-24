@@ -1,8 +1,10 @@
 // @ts-check
 
-// Find the canvas and start!
+// set the canvas & canvas variables
 let canvas = document.getElementById("box2canvas");
 let context = canvas.getContext("2d");
+let canvasH = canvas.getAttribute("height");
+let canvasW = canvas.getAttribute("width");
 
 //this is a 'display list' -> list of objects we plan to draw
 let newColor = getRGBcolorString();
@@ -25,9 +27,9 @@ canvas.onmousedown = function(event) {
  */
 let draw = function() {
     //reset the canvas
-    context.clearRect(0, 0, canvas.getAttribute("width"), canvas.getAttribute("height"))
-    context.fillStyle = "#cffffa";
-    context.fillRect(0,0,600,400);
+    context.clearRect(0, 0, canvasW, canvasH);
+    context.fillStyle = "#131862";
+    context.fillRect(0,0,canvasW, canvasH);
 
     //check to add random fireworks
     if(Math.random() > 0.99) { launchRandomFirework(); }
@@ -193,8 +195,9 @@ function fadeColor(colorString) {
 }
 
 /**
+ * Checks if the passed-in element is outside the canvas bounds
  * 
- * @param {*} element - an element with an x & y attribute; expected from the 'fwList' or 'expList' arrays
+ * @param {object} element - an element with an x & y attribute; expected from the 'fwList' or 'expList' arrays
  * @returns 1 if oustide canvas bounds, 0 otherwise
  */
     function outsideBounds(element) {
@@ -202,8 +205,8 @@ function fadeColor(colorString) {
     if(element===undefined || element===null) return 0;
 
     // check if element is outside canvas bounds
-    if(element.x < 0 || element.x > canvas.getAttribute("width")) return 1;
-    if(element.y < 0 || element.y > canvas.getAttribute("height")) return 1;
+    if(element.x < 0 || element.x > canvasW) return 1;
+    if(element.y < 0 || element.y > canvasH) return 1;
     
     //default
     return 0;
