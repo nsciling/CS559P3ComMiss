@@ -14,32 +14,53 @@ let turLen = 90;
 let baseX = canvasW/2;
 let baseY = canvasH - turretRadius;
 
-//this is a 'display list' -> list of objects we plan to draw
-let newColor = getRGBcolorString();
+//Anti-Ballistic Missile (ABM) globals
 let abmTotal = 9;
-let abmRad = 5;
+let abmRadius = 5;
 let abmList = [];
 let abmTrail = [];
-let abmSpeed = 2.5;
-let bombList = [];
-let expList = [];   // explosions
-let expCount = 35;  // default number of explosions to produce
+let abmSpeed = 1;
+let abmColor = "white";
+let abmLineColor = "#d6d6d6"
+let abmLineWidth = 2;
+
+//protective explosions globals
+let abmExplosionList = [];
+let abmExplosionRadius = 35;
+let abmExplosionGrowth = 0.35;
+
+//incoming bombs globals
+let enemyList = [];
+let enemyFrequency = 0.5;
+let enemyFrequencyGrowth = 0.25;
+let enemyMaxCount = 5;
+let enemySpeed = 0.5;
+let enemySpeedGrowth = 0.25;
+let enemySquareSize = 10;
+let enemyColor = "red";
+let enemyLineColor = "#800617";
+let enemyLineWidth = abmLineWidth;
 
 
 /**
  * Main draw function to redraw game on each animation iteration
  */
-let draw = function() {
+let drawGame = function() {
 
     // clean & redraw screen
     resetCanvas();
 
     // draws missiles, turret base & gun
+    drawABMExplosions();
     drawABMs();
     drawTurret();
 
+    // add & draw enemies
+    launchEnemy();
+    drawEnemies();
+
     // next frame
-    window.requestAnimationFrame(draw);
+    window.requestAnimationFrame(drawGame);
 }
 
 /**
@@ -54,6 +75,90 @@ function resetCanvas() {
 
 
 /**
+ * Draws enemy bombs in the enemyList array
+ */
+function drawEnemies() {
+
+    for(let i = 0; i < enemyList.length; i++) {
+        let curEnemy = enemyList[i];
+        curEnemy.dist += enemySpeed;
+        let newPos = getPointOnPath(curEnemy.x, curEnemy.y, curEnemy.tx, curEnemy.ty, curEnemy.dist);
+        
+        // draw enemy path
+        context.beginPath();
+        context.moveTo(curEnemy.x, curEnemy.y);
+        context.lineTo(newPos.x, newPos.y);
+        context.strokeStyle=enemyLineColor;
+        context.lineWidth=enemyLineWidth;
+        context.stroke();
+        context.closePath();
+
+        // draw enemy
+		context.fillStyle="red";
+		context.fillRect(newPos.x - enemySquareSize/2, newPos.y - enemySquareSize/2, enemySquareSize, enemySquareSize);
+
+        // if enemy is beyond their target or is defeated by an anti-ballistic missile, remove it
+        if(newPos.isBeyond || isDefeated(newPos)) enemyList.splice(i, 1); 
+    }
+}
+
+/**
+ * Check to see if an enemy projectile was defeated by an anti-ballistic explosion
+ * @param {object} curEnemy - enemy object with x & y values
+ * @returns true if defeated, false if not
+ */
+function isDefeated(curEnemy) {
+
+    // set return variable
+    let ret = false;
+
+    let enemyRadius = enemySquareSize / 2; // treat enemy like a circle
+
+    // loop through protective explosions; if one is
+    for(let i = 0; ((i < abmExplosionList.length) && (!ret)) ; i++) {
+        
+        let curExplosion = abmExplosionList[i];
+        let dist = distBetweenTwoPoints(curEnemy.x, curEnemy.y, curExplosion.sourceAbm.tx, curExplosion.sourceAbm.ty);
+        
+        // if the distance between the two source points is less than
+        // the radii of the two objects, then enemy is defeated
+        if(dist < (enemyRadius + curExplosion.radius)) ret = true;
+    }
+
+    return ret;
+}
+
+/**
+ * Handles enemy launching. Launches enemies at random intervals
+ * based on enemyFrequency variable.
+ * 
+ * Will stop launching new enemies if the current enemies launched
+ * surpass the enemy max count
+ * 
+ * @returns nothing
+ */
+function launchEnemy() {
+
+    if(Math.random() > enemyFrequency/100) return;
+    if(enemyList.length >= enemyMaxCount) return;
+
+    let startX = Math.random()*canvasW;
+    let startY = 0;
+
+    let targetX = Math.random()*canvasW;
+    let targetY = canvasH;
+
+    // build elements of the enemy missile
+    enemyList.push({
+        x:  startX,
+        y:  startY,
+        tx: targetX,
+        ty: targetY,
+        dist:0,
+    });
+}
+
+/**
  * Draws the missiles currently in flight
  */
 function drawABMs() {
@@ -62,43 +167,45 @@ function drawABMs() {
         let curABM = abmList[i];
         curABM.dist += abmSpeed;
         let newPos = getPointOnPath(curABM.x, curABM.y, curABM.tx, curABM.ty, curABM.dist);
+
+        // set style
+        context.strokeStyle=abmLineColor;
+        context.lineWidth=abmLineWidth;
+
+        // draw the targets
+        context.beginPath();
+        context.moveTo(curABM.tx - abmRadius, curABM.ty - abmRadius);
+        context.lineTo(curABM.tx + abmRadius, curABM.ty + abmRadius);
+        context.stroke();
+        context.closePath();
+
+        context.beginPath();
+        context.moveTo(curABM.tx - abmRadius, curABM.ty + abmRadius);
+        context.lineTo(curABM.tx + abmRadius, curABM.ty - abmRadius);
+        context.stroke();
+        context.closePath();
         
+        // draw ABM missile path
+        context.beginPath();
+        context.moveTo(curABM.x, curABM.y);
+        context.lineTo(newPos.x, newPos.y);
+        context.stroke();
+        context.closePath();
+
         // draw missile
 		context.beginPath();
-		context.arc(newPos.x, newPos.y, abmRad, 0, 2 * Math.PI, false);
-		context.fillStyle="white";
+		context.arc(newPos.x, newPos.y, abmRadius, 0, 2 * Math.PI, false);
+		context.fillStyle=abmColor;
 		context.fill();
 
         // if pct >= 1.0 no more missile
-        if(newPos.isBeyond) abmList.splice(i, 1); 
+        if(newPos.isBeyond) {
+            addABMExplosion(curABM);
+            abmList.splice(i, 1); 
+        }
     }
 }
 
-/**
- * Draws the gun turret player users to shoot
- */
-function drawTurret() {
-    // target
-    let adjTarget = getAdjustedTurretPos(baseX,baseY,mouseX,mouseY,turLen);
-
-    //draw gun & rotate matrix
-    let gunColor = "#05e322";
-    context.lineWidth = 20;
-    context.beginPath();
-    context.moveTo(baseX, baseY);
-    context.strokeStyle = gunColor;
-    context.lineTo(adjTarget.x, adjTarget.y);
-    context.stroke();
-    context.closePath();
-    resetTransormationMatrix();
-    
-    //draw circle turret platform
-    let turretColor = "#992593";
-    context.beginPath();
-    context.arc(baseX, baseY, turretRadius, 0, 2 * Math.PI, false);
-    context.fillStyle=turretColor;
-    context.fill();
-}
 
 /**
  * Fires an anti-ballistic missle (aka adds an element to the abmList array)
@@ -122,8 +229,106 @@ function fireABM(tx, ty) {
         ty: ty,
         dist:0,
     });
+}
 
-    return;
+/**
+ * Adds a protective explosion
+ * 
+ * @param {object} curAbm - ABM object with x & y coords
+ */
+function addABMExplosion(curAbm) {
+
+    abmExplosionList.push({
+        sourceAbm: curAbm,
+        radius: abmRadius,
+        growthMultiplier: 1
+    });
+
+}
+
+/**
+ * Draws the protective explosion from an Anti-Ballistic Missile
+ */
+function drawABMExplosions() {
+
+    for(let i = 0; i < abmExplosionList.length; i++) {
+        let curExplosion = abmExplosionList[i];
+        
+        // draw explosion path
+        context.beginPath();
+        context.moveTo(curExplosion.sourceAbm.x, curExplosion.sourceAbm.y);
+        context.lineTo(curExplosion.sourceAbm.tx, curExplosion.sourceAbm.ty);
+        context.strokeStyle=abmLineColor;
+        context.lineWidth=abmLineWidth;
+        context.stroke();
+        context.closePath();
+
+        // draw explosion
+		context.beginPath();
+		context.arc(curExplosion.sourceAbm.tx, curExplosion.sourceAbm.ty, curExplosion.radius, 0, 2 * Math.PI, false);
+		context.fillStyle=getRandomColorString();
+		context.fill();
+
+        // increment radius
+        curExplosion.radius += (abmExplosionGrowth * curExplosion.growthMultiplier);
+
+        // if pct >= 1.0 no more missile
+        if(curExplosion.radius > abmExplosionRadius) curExplosion.growthMultiplier = -1;
+        if(curExplosion.radius <= 0) abmExplosionList.splice(i, 1);
+    }
+
+}
+
+/**
+ * Draws the gun turret player users to shoot
+ */
+function drawTurret() {
+    // target
+    let adjTarget = getAdjustedTurretPos(baseX,baseY,mouseX,mouseY,turLen);
+
+    //draw gun & rotate matrix
+    let gunColor = "#05e322";
+    context.lineWidth = 20;
+    context.beginPath();
+    context.moveTo(baseX, baseY);
+    context.strokeStyle = gunColor;
+    context.lineTo(adjTarget.x, adjTarget.y);
+    context.stroke();
+    context.closePath();
+    //resetTransormationMatrix();
+    
+    //draw circle turret platform
+    let turretColor = "#992593";
+    context.beginPath();
+    context.arc(baseX, baseY, turretRadius, 0, 2 * Math.PI, false);
+    context.fillStyle=turretColor;
+    context.fill();
+
+    //draw bullets
+    let r = -1;
+    let c = 0.5;
+    for(let i = 0; i < (abmTotal - abmList.length - abmExplosionList.length); i++) {
+        drawAmmo(baseX + (r * 15), baseY + (c * 15));
+        r++;
+        if(r > 1) {
+            c--;
+            r = -1;
+        }
+    }
+}
+
+/**
+ * Draws 'ammo' on the turret to let player know how many bullets
+ * are left
+ * 
+ * @param {number} x - x position of the ammo image
+ * @param {number} y - y position of the ammo image
+ */
+function drawAmmo(x, y) {
+    context.beginPath();
+    context.arc(x, y, abmRadius, 0, 2 * Math.PI, false);
+    context.fillStyle="white";
+    context.fill();
 }
 
 /**
@@ -139,38 +344,14 @@ function getRandomBetween(min, max) {
 }
 
 /**
- * Function to draw an explosion square
- * 
- * @param {number} x - x-coordinate of the explosion particle
- * @param {number} y - y-coordinate of the explosion particle
- * @param {number} lw - the length(width) of the explosion particle
- * @param {string} color - color of the particle
- * @returns none; draws a square particle on the webpage
- */
-function drawExplosion(x, y, lw, color) {
-    //quit without necessary data
-    if(x===undefined || y===undefined || lw===undefined || color===undefined) return;
-    
-    //save off context before 
-    context.save();
-
-    //draw explosion
-    context.fillStyle = color;
-    context.fillRect(x - Math.floor(lw/2), y - Math.floor(lw/2), lw, lw);
-
-    //restore context
-    context.restore();
-}
-
-/**
- * Function to return a random RGB color string
- * @returns string with RGB css format, ex: "rgb(100,200,100)"
- */
-function getRGBcolorString() {
+* Function to return a random RGB color string
+* @returns string with RGBA css format, ex: "rgba(100,200,100,1.0)"
+*/
+function getRandomColorString() {
     let red = Math.floor(Math.random() * 255);
     let green = Math.floor(Math.random() * 255);
     let blue = Math.floor(Math.random() * 255);
-    
+
     return "rgba(" + red + "," + green + "," + blue + ",1.0)";    
 }
 
@@ -198,25 +379,6 @@ function fadeColor(colorString) {
 }
 
 /**
- * Checks if the passed-in element is outside the canvas bounds
- * 
- * @param {object} element - an element with an x & y attribute; expected from the 'fwList' or 'expList' arrays
- * @returns 1 if oustide canvas bounds, 0 otherwise
- */
-function outsideBounds(element) {
-
-    if(element===undefined || element===null) return 0;
-
-    // check if element is outside canvas bounds
-    if(element.x < 0 || element.x > canvasW) return 1;
-    if(element.y < 0 || element.y > canvasH) return 1;
-    
-    //default
-    return 0;
-
-}
-
-/**
  * Resets the transformation matrix
  */
 function resetTransormationMatrix() {
@@ -236,7 +398,7 @@ function resetTransormationMatrix() {
 function getAdjustedTurretPos(bx,by,tx,ty,len) {
 
     // distance between base and target points
-    let dist = Math.sqrt((tx-bx)**2 + (by-ty)**2);
+    let dist = distBetweenTwoPoints(bx,by,tx,ty);
     
     // calculate the % of the total distance that is the desired length
     let fraction = len / dist;
@@ -260,7 +422,7 @@ function getAdjustedTurretPos(bx,by,tx,ty,len) {
  */
 function getPointOnPath(startX, startY, targetX, targetY, increment) {
     // distance between base and target points
-    let dist = Math.sqrt((targetX - startX)**2 + (targetY - startY)**2);
+    let dist = distBetweenTwoPoints(startX, startY, targetX, targetY);
     
     // calculate the % of the total distance that is the desired length
     let fraction = increment / dist;
@@ -271,13 +433,22 @@ function getPointOnPath(startX, startY, targetX, targetY, increment) {
     return {x:newX, y:newY, isBeyond:(fraction >= 1.0)};
 }
 
+/**
+ * Calculates the distnace between two points
+ * @param {number} x1 - point 1 x coordinate
+ * @param {number} y1 - point 2 x coordinate
+ * @param {number} x2 - point 1 y coordinate
+ * @param {number} y2 - point 2 y coordinate
+ * @returns distance value
+ */
+function distBetweenTwoPoints(x1, y1, x2, y2) { return Math.sqrt((x1-x2)**2 + (y1-y2)**2) };
+
 // Function wrappers to get mouse coords
 function getMouseX(event) { return event.clientX - event.target.getBoundingClientRect().left; }
 function getMouseY(event) { return event.clientY - event.target.getBoundingClientRect().top; }
 
 
 // Event handlers
-
 canvas.onmousedown = function(event) {
     let tx = getMouseX(event);
     let ty = getMouseY(event);
@@ -291,4 +462,4 @@ canvas.onmousemove = function(event) {
 }
 
 
-window.requestAnimationFrame(draw); // start animation
+window.requestAnimationFrame(drawGame); // start game
