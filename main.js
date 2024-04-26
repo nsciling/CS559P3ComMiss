@@ -5,6 +5,8 @@ let canvas = document.getElementById("box2canvas");
 let context = canvas.getContext("2d");
 let canvasH = canvas.getAttribute("height");
 let canvasW = canvas.getAttribute("width");
+context.font = "25px Courier new";
+context.textAlign = "center";
 
 // globals
 let mouseX;
@@ -13,6 +15,8 @@ let turretRadius = 50;
 let turLen = 90;
 let baseX = canvasW/2;
 let baseY = canvasH - turretRadius;
+let score = 0;
+let lastMilestone = 0;
 
 //Anti-Ballistic Missile (ABM) globals
 let abmTotal = 9;
@@ -34,7 +38,7 @@ let enemyList = [];
 let enemyFrequency = 0.5;
 let enemyFrequencyGrowth = 0.25;
 let enemyMaxCount = 5;
-let enemySpeed = 0.5;
+let enemySpeed = 0.35;
 let enemySpeedGrowth = 0.25;
 let enemySquareSize = 10;
 let enemyColor = "red";
@@ -50,6 +54,9 @@ let drawGame = function() {
     // clean & redraw screen
     resetCanvas();
 
+    // set score
+    updateScoreAndSpeeds();
+
     // draws missiles, turret base & gun
     drawABMExplosions();
     drawABMs();
@@ -61,6 +68,24 @@ let drawGame = function() {
 
     // next frame
     window.requestAnimationFrame(drawGame);
+}
+
+function updateScoreAndSpeeds () {
+    context.save();
+        context.strokeStyle="white";
+        context.strokeText("Score: "+score, (canvasW/2), canvasH*0.1);
+    context.restore();
+
+    // if score is a multiple of 10, increment speed, frequency, and max enemies
+    if((score > lastMilestone) && (score % 10 == 0)) {
+        lastMilestone = score;
+        let scoreMilestones = lastMilestone / 10;
+
+        enemySpeed += (scoreMilestones*0.25);
+        enemyFrequency += (scoreMilestones*0.25);
+        enemyMaxCount++;
+    }
+
 }
 
 /**
@@ -78,10 +103,10 @@ function resetCanvas() {
  * Draws enemy bombs in the enemyList array
  */
 function drawEnemies() {
-
+    context.save();
     for(let i = 0; i < enemyList.length; i++) {
         let curEnemy = enemyList[i];
-        curEnemy.dist += enemySpeed;
+        curEnemy.dist += curEnemy.speed;
         let newPos = getPointOnPath(curEnemy.x, curEnemy.y, curEnemy.tx, curEnemy.ty, curEnemy.dist);
         
         // draw enemy path
@@ -98,8 +123,17 @@ function drawEnemies() {
 		context.fillRect(newPos.x - enemySquareSize/2, newPos.y - enemySquareSize/2, enemySquareSize, enemySquareSize);
 
         // if enemy is beyond their target or is defeated by an anti-ballistic missile, remove it
-        if(newPos.isBeyond || isDefeated(newPos)) enemyList.splice(i, 1); 
+        if(newPos.isBeyond) {
+            enemyList.splice(i, 1); 
+            score--;
+        }
+
+        if(isDefeated(newPos)) {
+            enemyList.splice(i, 1); 
+            score++;
+        }
     }
+    context.restore();
 }
 
 /**
@@ -154,6 +188,7 @@ function launchEnemy() {
         y:  startY,
         tx: targetX,
         ty: targetY,
+        speed: enemySpeed,
         dist:0,
     });
 }
@@ -162,7 +197,7 @@ function launchEnemy() {
  * Draws the missiles currently in flight
  */
 function drawABMs() {
-
+    context.save();
     for(let i = 0; i < abmList.length; i++) {
         let curABM = abmList[i];
         curABM.dist += abmSpeed;
@@ -204,6 +239,7 @@ function drawABMs() {
             abmList.splice(i, 1); 
         }
     }
+    context.restore();
 }
 
 
@@ -251,6 +287,7 @@ function addABMExplosion(curAbm) {
  */
 function drawABMExplosions() {
 
+    context.save();
     for(let i = 0; i < abmExplosionList.length; i++) {
         let curExplosion = abmExplosionList[i];
         
@@ -276,6 +313,7 @@ function drawABMExplosions() {
         if(curExplosion.radius > abmExplosionRadius) curExplosion.growthMultiplier = -1;
         if(curExplosion.radius <= 0) abmExplosionList.splice(i, 1);
     }
+    context.restore();
 
 }
 
@@ -283,6 +321,8 @@ function drawABMExplosions() {
  * Draws the gun turret player users to shoot
  */
 function drawTurret() {
+    context.save();
+
     // target
     let adjTarget = getAdjustedTurretPos(baseX,baseY,mouseX,mouseY,turLen);
 
@@ -315,6 +355,8 @@ function drawTurret() {
             r = -1;
         }
     }
+    
+    context.restore();
 }
 
 /**
