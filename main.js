@@ -8,7 +8,7 @@ let canvasW = canvas.getAttribute("width");
 context.font = "25px Courier new";
 context.textAlign = "center";
 
-// globals
+// variables
 let mouseX;
 let mouseY;
 let turretRadius = 50;
@@ -16,9 +16,21 @@ let turLen = 90;
 let baseX = canvasW/2;
 let baseY = canvasH - turretRadius;
 let score = 0;
+let health = 100;
+let milestoneScoreMultiple = 5;
 let lastMilestone = 0;
+let start = false;
+let pause = false;
+let pauseDrawn = false;
+let gameOver = false;
 
-//Anti-Ballistic Missile (ABM) globals
+// city variables
+let cityColor = "#992593";
+let buildingColor = "#55326b";
+let windowColor = "#726bb3";
+let groundStart = 0.925*canvasH;
+
+//Anti-Ballistic Missile (ABM) variables
 let abmTotal = 9;
 let abmRadius = 5;
 let abmList = [];
@@ -28,22 +40,22 @@ let abmColor = "white";
 let abmLineColor = "#d6d6d6"
 let abmLineWidth = 2;
 
-//protective explosions globals
+//protective explosions variables
 let abmExplosionList = [];
 let abmExplosionRadius = 35;
 let abmExplosionGrowth = 0.35;
 
-//incoming bombs globals
+//enemy bombs variables
 let enemyList = [];
 let enemyFrequency = 0.5;
 let enemyFrequencyGrowth = 0.25;
 let enemyMaxCount = 5;
-let enemySpeed = 0.35;
+let enemyBaseSpeed = 0.35;
 let enemySpeedGrowth = 0.25;
-let enemySquareSize = 10;
-let enemyColor = "red";
-let enemyLineColor = "#800617";
 let enemyLineWidth = abmLineWidth;
+let enemyExplosionList = []; //explosions when enemies are defeated
+let enemyExplosionCount = 20;
+let explosionFrames = 75;
 
 
 /**
@@ -51,41 +63,104 @@ let enemyLineWidth = abmLineWidth;
  */
 let drawGame = function() {
 
-    // clean & redraw screen
-    resetCanvas();
+    // if game over, that's it
+    if(gameOver) {
+        drawGameOverScreen();
+        return;
+    }
 
-    // set score
-    updateScoreAndSpeeds();
+    // check start & paused conditions before drawing game
+    if(!start) {
+        drawStartScreen();
+    }
+    else if(pause) {
+        drawPauseScreen();
+    } 
+    else {
+        pauseDrawn = false;
 
-    // draws missiles, turret base & gun
-    drawABMExplosions();
-    drawABMs();
-    drawTurret();
+        // clean & redraw screen
+        resetCanvas();
 
-    // add & draw enemies
-    launchEnemy();
-    drawEnemies();
+        // update score & health
+        updateScoreDisplay();
+
+        // update behaviors
+        updateEnemyIntensity();
+
+        // draw the city
+        drawCity();
+
+        // draws missiles, turret base & gun
+        drawDefeatExplosions();
+        drawTurret();
+        drawABMExplosions();
+        drawABMs();
+
+        // add & draw enemies
+        launchEnemy();
+        drawEnemies();
+    }
 
     // next frame
     window.requestAnimationFrame(drawGame);
 }
 
-function updateScoreAndSpeeds () {
+/**
+ * Draws the game over screen
+ */
+function drawGameOverScreen() {
+    resetCanvas();
+    context.save();
+    context.fillStyle = "black"
+    context.fillRect(0,0,canvasW,canvasH);
+    context.save();
+        let textX = canvasW/2;
+        let textY = canvasH/2;
+        context.strokeStyle="white";
+        context.font = "80px Courier new";
+        context.strokeText("GAME OVER", textX, textY-50);
+        context.font = "40px Courier new";
+        context.strokeText("Final score: "+score, textX, textY);
+        context.font = "18px Courier new";
+        context.strokeText("refresh page to start a new game", textX, textY + 35);
+    context.restore();
+}
+
+/**
+ * Draws the start screen
+ */
+function drawStartScreen() {
+    resetCanvas();
+    context.save();
+    context.fillStyle = "black"
+    context.fillRect(0,0,canvasW,canvasH);
+    context.save();
+        let textX = canvasW/2;
+        let textY = canvasH/2;
+        context.strokeStyle="white";
+        context.strokeText("Press 'S' to Start", textX, textY);
+    context.restore();
+}
+
+/**
+ * Draws the pause menu
+ */
+function drawPauseScreen() {
+    if(pauseDrawn) return;
+    context.save();
+    context.fillStyle = "rgba(0,0,0,0.65)";
+    context.fillRect(0,0,canvasW,canvasH);
     context.save();
         context.strokeStyle="white";
-        context.strokeText("Score: "+score, (canvasW/2), canvasH*0.1);
+        let pauseX = canvasW/2;
+        let pauseY = canvasH/2;
+        context.strokeText("PAUSED", pauseX, pauseY);
+        context.font = "18px Courier new";
+        context.strokeText("press 'ESC' again to resume", pauseX, pauseY + 20);
     context.restore();
-
-    // if score is a multiple of 10, increment speed, frequency, and max enemies
-    if((score > lastMilestone) && (score % 10 == 0)) {
-        lastMilestone = score;
-        let scoreMilestones = lastMilestone / 10;
-
-        enemySpeed += (scoreMilestones*0.25);
-        enemyFrequency += (scoreMilestones*0.25);
-        enemyMaxCount++;
-    }
-
+    context.restore();
+    pauseDrawn = true;
 }
 
 /**
@@ -98,6 +173,49 @@ function resetCanvas() {
     context.fillRect(0,0,canvasW, canvasH);
 }
 
+/**
+ *  Updates the displayable score
+ */
+function updateScoreDisplay() {
+    context.save();
+        context.strokeStyle="white";
+        let scoreX =(canvasW/2);
+        let scoreY = canvasH*0.05;
+        context.strokeText("Score: "+score, scoreX, scoreY);
+        context.strokeText("Health: "+health+"%", scoreX, scoreY+30);
+    context.restore();
+
+    if(health <= 0) gameOver = true;
+}
+
+/**
+ * Updates enemy behaviors/intensity. Specifically, if score is a multiple of 10,
+ * increment speed, frequency, and max enemies
+ */
+function updateEnemyIntensity() {
+    // if score is a multiple of 10, increment speed, frequency, and max enemies
+    if((score > lastMilestone) && (score % 10 == 0)) {
+        lastMilestone = score;
+        let scoreMilestones = lastMilestone / milestoneScoreMultiple;
+
+        enemyBaseSpeed += (scoreMilestones*0.1);
+        enemyFrequency += (scoreMilestones*0.25);
+        enemyMaxCount++;
+    }
+}
+
+function drawCity() {
+    context.save();
+
+    // draw ground
+    context.fillStyle=cityColor;
+    context.fillRect(0, groundStart, canvasW, canvasH-groundStart);
+
+    // draw the buildings
+
+    context.restore();
+}
+
 
 /**
  * Draws enemy bombs in the enemyList array
@@ -108,28 +226,34 @@ function drawEnemies() {
         let curEnemy = enemyList[i];
         curEnemy.dist += curEnemy.speed;
         let newPos = getPointOnPath(curEnemy.x, curEnemy.y, curEnemy.tx, curEnemy.ty, curEnemy.dist);
+        curEnemy.curX = newPos.x;
+        curEnemy.curY = newPos.y;
         
         // draw enemy path
         context.beginPath();
         context.moveTo(curEnemy.x, curEnemy.y);
-        context.lineTo(newPos.x, newPos.y);
-        context.strokeStyle=enemyLineColor;
+        context.lineTo(curEnemy.curX, curEnemy.curY);
+        context.strokeStyle=curEnemy.lineColor;
         context.lineWidth=enemyLineWidth;
         context.stroke();
         context.closePath();
 
         // draw enemy
-		context.fillStyle="red";
-		context.fillRect(newPos.x - enemySquareSize/2, newPos.y - enemySquareSize/2, enemySquareSize, enemySquareSize);
+		context.fillStyle=curEnemy.color;
+		context.fillRect(curEnemy.curX - curEnemy.size/2, curEnemy.curY - curEnemy.size/2, curEnemy.size, curEnemy.size);
 
         // if enemy is beyond their target or is defeated by an anti-ballistic missile, remove it
         if(newPos.isBeyond) {
             enemyList.splice(i, 1); 
-            score--;
+            health -= curEnemy.damage;
         }
 
-        if(isDefeated(newPos)) {
+        if(isDefeated(curEnemy)) {
             enemyList.splice(i, 1); 
+
+            // update enemy x & y positions for explosion handling
+            addDefeatExplosions(curEnemy);
+
             score++;
         }
     }
@@ -146,13 +270,13 @@ function isDefeated(curEnemy) {
     // set return variable
     let ret = false;
 
-    let enemyRadius = enemySquareSize / 2; // treat enemy like a circle
+    let enemyRadius = curEnemy.size / 2; // treat enemy like a circle
 
     // loop through protective explosions; if one is
     for(let i = 0; ((i < abmExplosionList.length) && (!ret)) ; i++) {
         
         let curExplosion = abmExplosionList[i];
-        let dist = distBetweenTwoPoints(curEnemy.x, curEnemy.y, curExplosion.sourceAbm.tx, curExplosion.sourceAbm.ty);
+        let dist = distBetweenTwoPoints(curEnemy.curX, curEnemy.curY, curExplosion.sourceAbm.tx, curExplosion.sourceAbm.ty);
         
         // if the distance between the two source points is less than
         // the radii of the two objects, then enemy is defeated
@@ -161,6 +285,57 @@ function isDefeated(curEnemy) {
 
     return ret;
 }
+
+/**
+ * Adds explosion to the enemyExplosionList array
+ * @param {object} enemy - enemy with curX & curY coords
+ */
+function addDefeatExplosions(enemy) {
+
+    if(enemy===undefined || enemy.curX===undefined || enemy.curY===undefined) return;
+
+    // add explosions to the enemyExplosionList
+    for(let i = 0; i < enemyExplosionCount; i++) {
+        enemyExplosionList.push({x: enemy.curX, y: enemy.curY, vx: 4 * (Math.random() * 2 - 1),
+            vy: 4 * (Math.random() * 2 - 1), ay: 0.04, size: enemy.size*0.75, color: enemy.color, frames: explosionFrames});
+    }
+}
+
+/**
+ * Draws all the 'defeat' explosions in enemyExplosionList
+ */
+function drawDefeatExplosions() {
+
+    for(let explosion of enemyExplosionList) {
+        explosion.x += explosion.vx;  // update x position of explosion
+        explosion.vy += explosion.ay; // update y velocity (so that it speeds up towards ground)
+        explosion.y += explosion.vy;  // update y position
+
+        //remove the element if outside canvas bounds
+        if(outsideBounds(explosion) || explosion.frames <= 0) {
+            let index = enemyExplosionList.indexOf(explosion);
+            enemyExplosionList.splice(index,1);
+        } else {
+            //draw explosions
+            explosion.color = fadeColor(explosion.color); // make the explosion more transparent
+            
+            //save off context before 
+            context.save();
+
+            //draw explosion
+            context.fillStyle = explosion.color;
+            context.fillRect(explosion.x - Math.floor(explosion.size/2),
+                explosion.y - Math.floor(explosion.size/2), explosion.size, explosion.size);
+            explosion.frames--;
+
+            //restore context
+            context.restore();
+        }
+    }
+
+}
+
+
 
 /**
  * Handles enemy launching. Launches enemies at random intervals
@@ -179,17 +354,105 @@ function launchEnemy() {
     let startX = Math.random()*canvasW;
     let startY = 0;
 
-    let targetX = Math.random()*canvasW;
-    let targetY = canvasH;
+    let targetX;
+    // so that enemies don't attack turret directly, check targetX
+    do { targetX = Math.random()*canvasW; } while(Math.abs(targetX-(canvasW/2)) < (turretRadius*1.25));
+    let targetY = groundStart;
 
-    // build elements of the enemy missile
+    // determines which enemy type to add
+    // if we haven't reached any scoring milestones, only send basic enemies
+    if(lastMilestone < 1) {
+        addBasicEnemy(startX, startY, targetX, targetY);
+    } 
+    // if we've reached milestones 1-3, launch speedy enemies 20% of the time
+    else if(lastMilestone < 4) {
+        if(Math.random() < 0.2) addSpeedyEnemy(startX, startY, targetX, targetY);
+        else addBasicEnemy(startX, startY, targetX, targetY);
+    }
+    // if we've reached milestones 4 and beyond, launch large enemies 15% of the time,
+    // speedy enemies 25% of the time, and basic enemies the rest
+    else {
+        let rand = Math.random();
+        if(rand < 0.15) addLargeEnemy(startX, startY, targetX, targetY);
+        else if (rand < 0.4) addSpeedyEnemy(startX, startY, targetX, targetY);
+        else addBasicEnemy(startX, startY, targetX, targetY);
+    }
+    
+}
+
+/**
+ * Adds a basic enemy to the game
+ * 
+ * @param {number} startX - starting X coord for this enemy
+ * @param {number} startY - starting Y coord for this enemy
+ * @param {number} targetX - target X coord for this enemy
+ * @param {number} targetY - target Y coord for this enemy
+ */
+function addBasicEnemy(startX, startY, targetX, targetY) {
     enemyList.push({
         x:  startX,
         y:  startY,
+        curX: startX,
+        curY: startY,
         tx: targetX,
         ty: targetY,
-        speed: enemySpeed,
-        dist:0,
+        color: "RGBA(209,19,35,1.0)",
+        lineColor: "#800617",
+        speed: enemyBaseSpeed,
+        size: 10,
+        damage: 5,
+        dist:0
+    });
+}
+
+/**
+ * Adds a fast enemy to the game; it is smaller but faster than the basic enemy
+ * 
+ * @param {number} startX - starting X coord for this enemy
+ * @param {number} startY - starting Y coord for this enemy
+ * @param {number} targetX - target X coord for this enemy
+ * @param {number} targetY - target Y coord for this enemy
+ */
+function addSpeedyEnemy(startX, startY, targetX, targetY) {
+    enemyList.push({
+        x:  startX,
+        y:  startY,
+        curX: startX,
+        curY: startY,
+        tx: targetX,
+        ty: targetY,
+        color: "RGBA(229,232,37,1.0)",
+        lineColor: "#9c9e37",
+        speed: enemyBaseSpeed*1.25,
+        size: 7,
+        damage: 3,
+        dist:0
+    });
+
+}
+
+/**
+ * Adds a large enemy to the game; it is slower but bigger, and does more damage than the basic enemy
+ * 
+ * @param {number} startX - starting X coord for this enemy
+ * @param {number} startY - starting Y coord for this enemy
+ * @param {number} targetX - target X coord for this enemy
+ * @param {number} targetY - target Y coord for this enemy
+ */
+function addLargeEnemy(startX, startY, targetX, targetY) {
+    enemyList.push({
+        x:  startX,
+        y:  startY,
+        curX: startX,
+        curY: startY,
+        tx: targetX,
+        ty: targetY,
+        color: "RGBA(232,152,5,1.0)",
+        lineColor: "#9c6d16",
+        speed: enemyBaseSpeed*0.85,
+        size: 20,
+        damage: 10,
+        dist:0
     });
 }
 
@@ -338,10 +601,9 @@ function drawTurret() {
     //resetTransormationMatrix();
     
     //draw circle turret platform
-    let turretColor = "#992593";
     context.beginPath();
     context.arc(baseX, baseY, turretRadius, 0, 2 * Math.PI, false);
-    context.fillStyle=turretColor;
+    context.fillStyle=cityColor;
     context.fill();
 
     //draw bullets
@@ -413,8 +675,8 @@ function fadeColor(colorString) {
 
     if(match===undefined || match==null) return colorString;
 
-    // reduce the transparency by 0.985x, rounded to 3 decimals
-    let reduce = Math.round(match.valueOf()*0.985*1000)/1000
+    // reduce the transparency by 0.95x, rounded to 3 decimals
+    let reduce = Math.round(match.valueOf()*0.95*1000)/1000
 
     //console.log("Replace: "+colorString.replace(regex,","+reduce+")")) // for testing
     return colorString.replace(regex,","+reduce+")");
@@ -476,7 +738,7 @@ function getPointOnPath(startX, startY, targetX, targetY, increment) {
 }
 
 /**
- * Calculates the distnace between two points
+ * Calculates the distance between two points
  * @param {number} x1 - point 1 x coordinate
  * @param {number} y1 - point 2 x coordinate
  * @param {number} x2 - point 1 y coordinate
@@ -485,6 +747,24 @@ function getPointOnPath(startX, startY, targetX, targetY, increment) {
  */
 function distBetweenTwoPoints(x1, y1, x2, y2) { return Math.sqrt((x1-x2)**2 + (y1-y2)**2) };
 
+/**
+ * Determines if an object/element is beyond the canvas x & y bounds
+ * @param {object} obj - an element with an x & y attribute
+ * @returns true if oustide canvas bounds, false otherwise
+ */
+function outsideBounds(obj) {
+
+    if(obj===undefined || obj===null) return false;
+
+    // check if element is outside canvas bounds
+    if(obj.x < 0 || obj.x > obj) return true;
+    if(obj.y < 0 || obj.y > obj) return true;
+    
+    //default
+    return false;
+
+}
+
 // Function wrappers to get mouse coords
 function getMouseX(event) { return event.clientX - event.target.getBoundingClientRect().left; }
 function getMouseY(event) { return event.clientY - event.target.getBoundingClientRect().top; }
@@ -492,6 +772,10 @@ function getMouseY(event) { return event.clientY - event.target.getBoundingClien
 
 // Event handlers
 canvas.onmousedown = function(event) {
+
+    //if not left click, quit
+    if(event.button != 0) return;
+
     let tx = getMouseX(event);
     let ty = getMouseY(event);
 
@@ -503,5 +787,14 @@ canvas.onmousemove = function(event) {
     mouseY = getMouseY(event);
 }
 
+// Start & pause handling
+canvas.onkeydown = function(event) {
+    //console.log(event.keyCode);
+    pause = (event.keyCode==27) ? !pause : pause; //27 = Escape button
+    
+    if(!start && (event.keyCode==83)) start = true; //83 = S button
+}
 
+let span = document.getElementById("milestone");
+span.textContent = milestoneScoreMultiple.toString();
 window.requestAnimationFrame(drawGame); // start game
