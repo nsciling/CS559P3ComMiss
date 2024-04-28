@@ -26,16 +26,26 @@ let gameOver = false;
 
 // city variables
 let cityColor = "#992593";
-let buildingColor = "#55326b";
-let windowColor = "#726bb3";
+let buildingColor = "#196e56";
+let windowColor = "#a28dc7";
+let buildingWidth = 40;
+let floorHeight = 20;
+let windowWidth = Math.floor(buildingWidth*0.75/2);
+let windowHeight = Math.floor(floorHeight*0.65);
 let groundStart = 0.925*canvasH;
+let buildingList = [];
+let cityHitCoords = [];
+let cityHitExplosions = [];
+let cityHitSmoke = [];
+let cityHitColor = "#ffe252";
+let citySmokeColor = "RGBA(165,165,165,0.6)";
 
 //Anti-Ballistic Missile (ABM) variables
 let abmTotal = 9;
 let abmRadius = 5;
 let abmList = [];
 let abmTrail = [];
-let abmSpeed = 1;
+let abmSpeed = 1.5;
 let abmColor = "white";
 let abmLineColor = "#d6d6d6"
 let abmLineWidth = 2;
@@ -110,9 +120,8 @@ let drawGame = function() {
  * Draws the game over screen
  */
 function drawGameOverScreen() {
-    resetCanvas();
     context.save();
-    context.fillStyle = "black"
+    context.fillStyle = "rgba(0,0,0,0.65)";
     context.fillRect(0,0,canvasW,canvasH);
     context.save();
         let textX = canvasW/2;
@@ -138,8 +147,11 @@ function drawStartScreen() {
     context.save();
         let textX = canvasW/2;
         let textY = canvasH/2;
+        context.font = "80px Courier new";
         context.strokeStyle="white";
-        context.strokeText("Press 'S' to Start", textX, textY);
+        context.strokeText("COMMAND MISSLE", textX, textY-30);
+        context.font = "20px Courier new";
+        context.strokeText("Press 'S' to Start", textX, textY + 40);
     context.restore();
 }
 
@@ -194,9 +206,9 @@ function updateScoreDisplay() {
  */
 function updateEnemyIntensity() {
     // if score is a multiple of 10, increment speed, frequency, and max enemies
-    if((score > lastMilestone) && (score % 10 == 0)) {
+    if((score > lastMilestone) && (score % milestoneScoreMultiple == 0)) {
         lastMilestone = score;
-        let scoreMilestones = lastMilestone / milestoneScoreMultiple;
+        let scoreMilestones = getScoreMilestones();
 
         enemyBaseSpeed += (scoreMilestones*0.1);
         enemyFrequency += (scoreMilestones*0.25);
@@ -204,6 +216,16 @@ function updateEnemyIntensity() {
     }
 }
 
+// quick function to be used in mutiple places to return score milestone count
+function getScoreMilestones() { return lastMilestone / milestoneScoreMultiple };
+
+/**
+ * Draws the city.
+ * - first draws the ground
+ * - then draws buildings provided by the buildingList array (populated by prepCity function)
+ * - then draws smoke from buildings being hit by enemies
+ * - then draws any explosions from enemy attacks
+ */
 function drawCity() {
     context.save();
 
@@ -211,7 +233,102 @@ function drawCity() {
     context.fillStyle=cityColor;
     context.fillRect(0, groundStart, canvasW, canvasH-groundStart);
 
-    // draw the buildings
+    // draw buildings
+    let doorWidth = 12;
+    for(let curBuilding of buildingList) {
+
+        let floorY = curBuilding.y;
+
+        for(let i = 0; i < curBuilding.numFloors; i++) {
+
+            context.fillStyle=buildingColor;
+            context.fillRect(curBuilding.x, floorY, buildingWidth, floorHeight);
+            context.fillStyle = windowColor;
+
+            //if first floor, draw a door
+            if(i==0) {
+                context.fillStyle="black";
+                context.fillRect(curBuilding.x + (buildingWidth/2)-(doorWidth/2), floorY + 5, doorWidth, 15);
+                floorY -= floorHeight;
+                continue;
+            }
+
+            //draw the windows
+            let windowX = curBuilding.x+((buildingWidth/2)-windowWidth)/2;
+            let windowY = floorY+(floorHeight-windowHeight)/2;
+            context.fillRect(windowX, windowY, windowWidth, windowHeight);
+            windowX = curBuilding.x+(buildingWidth/2)+((buildingWidth/2)-windowWidth)/2;
+            context.fillRect(windowX, windowY, windowWidth, windowHeight);
+
+            // set next floor height
+            floorY -= floorHeight;
+
+        }
+
+        // decrement floor height to draw next floor
+        floorY -= floorHeight;
+    }
+
+    // draw explosions
+    context.save();
+        context.fillStyle = cityHitColor;
+        for(let explosion of cityHitExplosions) {
+            // draw the explosion
+            context.beginPath();
+            context.arc(explosion.x, explosion.y, explosion.radius, 0, 2 * Math.PI, false);
+            context.fill();
+            context.closePath();
+            explosion.radius += (explosion.radGrowth * explosion.radMultiplier);
+
+            // if the explosion is bigger than the max radius, reverse the multiplier
+            if(explosion.radius >= abmExplosionRadius) explosion.radMultiplier = -1;
+            // if the explosion is complete, remove it from the list
+            if(explosion.radius <= 0) {
+                let index = cityHitExplosions.indexOf(explosion);
+                cityHitExplosions.splice(index,1);
+            }
+        }
+    context.restore();
+
+    // draw smoke
+    // first populate the city smoke array with more smoke
+    for(let coord of cityHitCoords) {
+        let newX = coord.x + (getRandomBetween(-1,10));
+        cityHitSmoke.push({
+            x: newX,
+            y: coord.y,
+            radius: 0,
+            color: citySmokeColor,
+            frames: (0 + 30*(Math.random()-0.75)) // so some smokestacks rise further
+        })
+    }
+
+    // next draw the smoke
+    context.save();
+    for(let smoke of cityHitSmoke) {
+        // increment smoke radius
+        smoke.radius+=0.25;
+
+        context.fillStyle = smoke.color;
+
+        // draw the smoke
+        context.beginPath();
+        context.arc(smoke.x, smoke.y, smoke.radius, 0, 2 * Math.PI, false);
+        context.fill();
+        context.closePath();
+
+        // dec/increment y coord, frames, fade smoke color
+        smoke.y--;
+        smoke.frames++;
+        smoke.color = fadeColor(smoke.color);
+
+        // if beyond the number of frames to draw, remove the smoke
+        if(smoke.frames > explosionFrames) {
+            let index = cityHitSmoke.indexOf(smoke);
+            cityHitSmoke.splice(index,1);
+        }
+    }
+    context.restore();
 
     context.restore();
 }
@@ -242,12 +359,29 @@ function drawEnemies() {
 		context.fillStyle=curEnemy.color;
 		context.fillRect(curEnemy.curX - curEnemy.size/2, curEnemy.curY - curEnemy.size/2, curEnemy.size, curEnemy.size);
 
-        // if enemy is beyond their target or is defeated by an anti-ballistic missile, remove it
+        // if enemy is beyond their target remove it and handle city damage
         if(newPos.isBeyond) {
             enemyList.splice(i, 1); 
+            
+            //update damage + set city fire/smoke
             health -= curEnemy.damage;
+            health = Math.max(0, health);
+            
+            cityHitCoords.push({
+                x: newPos.x,
+                y: newPos.y
+            });
+
+            cityHitExplosions.push({
+                x: newPos.x,
+                y: newPos.y,
+                radius: abmExplosionRadius/2,
+                radGrowth: 1,
+                radMultiplier: 1
+            })
         }
 
+        // if enemy is defeated by an ABM, also remove it and handle defeat explosions + score increase
         if(isDefeated(curEnemy)) {
             enemyList.splice(i, 1); 
 
@@ -361,23 +495,23 @@ function launchEnemy() {
 
     // determines which enemy type to add
     // if we haven't reached any scoring milestones, only send basic enemies
-    if(lastMilestone < 1) {
+    let curMilestone = getScoreMilestones();
+    if(curMilestone < 1) {
         addBasicEnemy(startX, startY, targetX, targetY);
     } 
     // if we've reached milestones 1-3, launch speedy enemies 20% of the time
-    else if(lastMilestone < 4) {
-        if(Math.random() < 0.2) addSpeedyEnemy(startX, startY, targetX, targetY);
+    else if(curMilestone < 4) {
+        if(Math.random() < 0.2) addLargeEnemy(startX, startY, targetX, targetY);
         else addBasicEnemy(startX, startY, targetX, targetY);
     }
     // if we've reached milestones 4 and beyond, launch large enemies 15% of the time,
     // speedy enemies 25% of the time, and basic enemies the rest
     else {
         let rand = Math.random();
-        if(rand < 0.15) addLargeEnemy(startX, startY, targetX, targetY);
-        else if (rand < 0.4) addSpeedyEnemy(startX, startY, targetX, targetY);
+        if(rand < 0.15) addSpeedyEnemy(startX, startY, targetX, targetY);
+        else if (rand < 0.4) addLargeEnemy(startX, startY, targetX, targetY);
         else addBasicEnemy(startX, startY, targetX, targetY);
-    }
-    
+    }   
 }
 
 /**
@@ -449,7 +583,7 @@ function addLargeEnemy(startX, startY, targetX, targetY) {
         ty: targetY,
         color: "RGBA(232,152,5,1.0)",
         lineColor: "#9c6d16",
-        speed: enemyBaseSpeed*0.85,
+        speed: enemyBaseSpeed*0.75,
         size: 20,
         damage: 10,
         dist:0
@@ -495,6 +629,7 @@ function drawABMs() {
 		context.arc(newPos.x, newPos.y, abmRadius, 0, 2 * Math.PI, false);
 		context.fillStyle=abmColor;
 		context.fill();
+        context.closePath();
 
         // if pct >= 1.0 no more missile
         if(newPos.isBeyond) {
@@ -568,6 +703,7 @@ function drawABMExplosions() {
 		context.arc(curExplosion.sourceAbm.tx, curExplosion.sourceAbm.ty, curExplosion.radius, 0, 2 * Math.PI, false);
 		context.fillStyle=getRandomColorString();
 		context.fill();
+        context.closePath();
 
         // increment radius
         curExplosion.radius += (abmExplosionGrowth * curExplosion.growthMultiplier);
@@ -605,6 +741,7 @@ function drawTurret() {
     context.arc(baseX, baseY, turretRadius, 0, 2 * Math.PI, false);
     context.fillStyle=cityColor;
     context.fill();
+    context.closePath();
 
     //draw bullets
     let r = -1;
@@ -633,6 +770,7 @@ function drawAmmo(x, y) {
     context.arc(x, y, abmRadius, 0, 2 * Math.PI, false);
     context.fillStyle="white";
     context.fill();
+    context.closePath();
 }
 
 /**
@@ -767,11 +905,18 @@ function outsideBounds(obj) {
 
 // Function wrappers to get mouse coords
 function getMouseX(event) { return event.clientX - event.target.getBoundingClientRect().left; }
-function getMouseY(event) { return event.clientY - event.target.getBoundingClientRect().top; }
+function getMouseY(event) { 
+    let retY = event.clientY - event.target.getBoundingClientRect().top;
+    return Math.min(retY, groundStart);
+}
 
 
 // Event handlers
+//Onmousedown - fires a missle; checks if game started before doing anything
 canvas.onmousedown = function(event) {
+
+    //if game hasn't started, don't do anything
+    if(!start) return;
 
     //if not left click, quit
     if(event.button != 0) return;
@@ -782,12 +927,13 @@ canvas.onmousedown = function(event) {
     fireABM(tx, ty);
 }
 
+//Onmousemove - logs x & y coords of mouse
 canvas.onmousemove = function(event) {
     mouseX = getMouseX(event);
     mouseY = getMouseY(event);
 }
 
-// Start & pause handling
+//Onkeydown - Start & pause handling
 canvas.onkeydown = function(event) {
     //console.log(event.keyCode);
     pause = (event.keyCode==27) ? !pause : pause; //27 = Escape button
@@ -795,6 +941,56 @@ canvas.onkeydown = function(event) {
     if(!start && (event.keyCode==83)) start = true; //83 = S button
 }
 
+//========================================================
+// Code below is run once to prep the game before starting
+//========================================================
+
+/**
+ * Function to populate the building array to draw the city
+ */
+function prepCity() {
+    // variables for start & end of the buildins
+    let floorX = 5;
+    let endX = floorX + buildingWidth;
+
+    // turret x coords
+    let turretStart = (canvasW/2) - (turLen + 10);
+    let turretEnd = (canvasW/2) + (turLen + 10);
+
+    // do-while loop to populate buildingList array; ensure buildings don't
+    // overlap with turret
+    do {
+        // if this building would be inside the turret, continue
+        if(((endX >= turretStart) && (endX <= turretEnd)) ||
+        ((floorX >= turretStart) && (floorX <= turretEnd))) {
+            // reset variables for next run;
+            floorX++;
+            endX = floorX + buildingWidth;
+            continue;
+        }
+
+        // randomize number of floors in buildings between 2 and 4
+        let numFloors = Math.floor(getRandomBetween(2,4.9));
+
+        // populate the array
+        buildingList.push({
+            x: floorX,
+            y: groundStart,
+            numFloors: numFloors
+        })
+
+        // set variables for next iteration
+        floorX = endX + 10; // constant 10 pixels between buildings
+        endX = floorX + buildingWidth;
+
+    } while (endX < canvasW);
+
+}
+
+// set the milestone value in HTML
 let span = document.getElementById("milestone");
 span.textContent = milestoneScoreMultiple.toString();
-window.requestAnimationFrame(drawGame); // start game
+
+// start the game
+prepCity();
+window.requestAnimationFrame(drawGame);
