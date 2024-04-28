@@ -649,9 +649,6 @@ function drawABMs() {
  * @returns nothing
  */
 function fireABM(tx, ty) {
-    // if already fired all bullets, don't fire anything
-    if(abmList.length >= abmTotal) return;
-
     // bet base x & y from adjusted turret position
     let turretEdge = getAdjustedTurretPos(baseX, baseY, tx, ty, turLen);
 
@@ -921,6 +918,10 @@ canvas.onmousedown = function(event) {
     //if not left click, quit
     if(event.button != 0) return;
 
+    //if all ABMs are fired, quit
+    if((abmList.length + abmExplosionList.length) >= abmTotal) return;
+
+    //if got this far, get mouse x & y and fire a missile
     let tx = getMouseX(event);
     let ty = getMouseY(event);
 
