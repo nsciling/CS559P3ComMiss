@@ -2,7 +2,8 @@ Nick Scilingo
 CS559 Spring 2024 P4 Submission
 
 2d game: "Command Missle"
-(a take on Missile Command: https://en.wikipedia.org/wiki/Missile_Command)
+A take on Missile Command: https://en.wikipedia.org/wiki/Missile_Command.
+Missile Command is copyrighted by Atari, 1981; this project owes its inspiration to Atari.
 
 Game website: https://nsciling.github.io/CS559P4ComMiss/
 GitHub repo: https://github.com/nsciling/CS559P4ComMiss
@@ -37,3 +38,6 @@ How to play:
 -- yellow (small) enemies do 3 damage
 6. Press 'Esc' to pause
 7. Upon Game Over, your final score will be displayed. To play again, press the Refresh button below the canvas, or refresh your browser window.
+
+Citations:
+- None; no third-party sources were used to produce the code in this project. Code from previous assignments this semester was referenced but not copied directly.
