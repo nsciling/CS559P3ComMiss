@@ -1,14 +1,14 @@
 Nick Scilingo
-CS559 Spring 2024 P3 Submission
+CS559 Spring 2024 P4 Submission
 
 2d game: "Command Missle"
 (a take on Missile Command: https://en.wikipedia.org/wiki/Missile_Command)
 
-Game website: https://nsciling.github.io/CS559P3ComMiss/
-GitHub repo: https://github.com/nsciling/CS559P3ComMiss
-Javascript: https://github.com/nsciling/CS559P3ComMiss/blob/main/main.js
+Game website: https://nsciling.github.io/CS559P4ComMiss/
+GitHub repo: https://github.com/nsciling/CS559P4ComMiss
+Javascript: https://github.com/nsciling/CS559P4ComMiss/blob/main/main.js
 
-P3 Objective:
+Project Objective:
 Create an interactive 2D game using concepts learned in CS559
 
 Functionalities implemented:
@@ -24,7 +24,7 @@ Functionalities originally planned, but NOT implemented, due to time limitations
 - no articulated objects in this game
 
 How to play:
-1. Go to https://nsciling.github.io/CS559P3ComMiss/
+1. Go to https://nsciling.github.io/CS559P4ComMiss/
 2. Press 'S' to start the game
 3. Left click to fire anti-ballistic missiles (ABMs). Fire these at enemy missiles. If the enemy missiles collide with your ABMs' explosion, the enemy missiles will explode.
 4. For every enemy you defeat, you will gain 1 point. For every 5 points you score, enemy intensity will increase:
