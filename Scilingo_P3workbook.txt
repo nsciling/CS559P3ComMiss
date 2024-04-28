@@ -1,0 +1,39 @@
+Nick Scilingo
+CS559 Spring 2024 P3 Submission
+
+2d game: "Command Missle"
+(a take on Missile Command: https://en.wikipedia.org/wiki/Missile_Command)
+
+Game website: https://nsciling.github.io/CS559P3ComMiss/
+GitHub repo: https://github.com/nsciling/CS559P3ComMiss
+Javascript: https://github.com/nsciling/CS559P3ComMiss/blob/main/main.js
+
+P3 Objective:
+Create an interactive 2D game using concepts learned in CS559
+
+Functionalities implemented:
+- Collision detection: player missles collide with enemy missiles
+- Procedurally-generated images: the buildings are built randomly, enemy missiles fire randomly, explosions and smoke are built procedurally
+- Explosion simulations: when player missiles collide with enemy missiles, the enemy missiles explode
+- Simple path traversal: missiles follow straight-line paths
+- Object rotations: while not actually utilizing true canvas rotations, the player's turret 
+- End-user input handling: turret follows user mouse; user can press keys to affect the game, such as pressing the Escape key to pause
+
+Functionalities originally planned, but NOT implemented, due to time limitations:
+- no curves in this game
+- no articulated objects in this game
+
+How to play:
+1. Go to https://nsciling.github.io/CS559P3ComMiss/
+2. Press 'S' to start the game
+3. Left click to fire anti-ballistic missiles (ABMs). Fire these at enemy missiles. If the enemy missiles collide with your ABMs' explosion, the enemy missiles will explode.
+4. For every enemy you defeat, you will gain 1 point. For every 5 points you score, enemy intensity will increase:
+-- they will get faster
+-- they will increase in number
+-- new enemies will appear: larger ones that are slower but do more damange, and smaller ones that are faster and do less damage
+5. If enemy missles hit your city, your health will decrease by the following amounts:
+-- red (basic) enemies do 5 damage
+-- orange (large) enemies do 10 damage
+-- yellow (small) enemies do 3 damage
+6. Press 'Esc' to pause
+7. Upon Game Over, your final score will be displayed. To play again, press the Refresh button below the canvas, or refresh your browser window.
