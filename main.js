@@ -499,13 +499,13 @@ function launchEnemy() {
     if(curMilestone < 1) {
         addBasicEnemy(startX, startY, targetX, targetY);
     } 
-    // if we've reached milestones 1-3, launch speedy enemies 20% of the time
+    // if we've reached milestones 1-3, launch large enemies 20% of the time
     else if(curMilestone < 4) {
         if(Math.random() < 0.2) addLargeEnemy(startX, startY, targetX, targetY);
         else addBasicEnemy(startX, startY, targetX, targetY);
     }
-    // if we've reached milestones 4 and beyond, launch large enemies 15% of the time,
-    // speedy enemies 25% of the time, and basic enemies the rest
+    // if we've reached milestones 4 and beyond, launch speedy enemies 15% of the time,
+    // large enemies 25% of the time, and basic enemies the rest
     else {
         let rand = Math.random();
         if(rand < 0.15) addSpeedyEnemy(startX, startY, targetX, targetY);
