@@ -493,7 +493,7 @@ function launchEnemy() {
 
     let targetX;
     // so that enemies don't attack turret directly, check targetX
-    do { targetX = Math.random()*canvasW; } while(Math.abs(targetX-(canvasW/2)) < (turretRadius*1.25));
+    do { targetX = Math.random()*canvasW; } while(Math.abs(targetX-(canvasW/2)) < (turLen));
     let targetY = groundStart;
 
     // determines which enemy type to add
@@ -586,8 +586,8 @@ function addLargeEnemy(startX, startY, targetX, targetY) {
         ty: targetY,
         color: "RGBA(232,152,5,1.0)",
         lineColor: "#9c6d16",
-        speed: enemyBaseSpeed*0.75,
-        size: 20,
+        speed: enemyBaseSpeed*0.7,
+        size: 25,
         damage: 10,
         dist:0
     });
