@@ -462,6 +462,9 @@ function drawDefeatExplosions() {
                 explosion.y - Math.floor(explosion.size/2), explosion.size, explosion.size);
             explosion.frames--;
 
+            //reduce explosion size
+            explosion.size *= 0.975;
+
             //restore context
             context.restore();
         }
